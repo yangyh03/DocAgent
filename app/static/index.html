@@ -1,0 +1,326 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>DocAgent Workbench</title>
+    <link rel="icon" href="/static/assets/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/static/styles.css?v=20260702-qa-note-grid" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <img class="brand-mark" src="/static/assets/logo.svg" alt="DocAgent logo" />
+          <div>
+            <h1>DocAgent</h1>
+            <p>AI Document Workflow</p>
+          </div>
+        </div>
+
+        <section class="panel upload-panel">
+          <div class="panel-heading">
+            <span>上传解析</span>
+            <small>DOCX / PDF / HTML ZIP / Image</small>
+          </div>
+          <label class="drop-zone" for="fileInput">
+            <span class="drop-icon">↑</span>
+            <strong>选择文件</strong>
+            <small id="fileSummary">可多选，结果按文件切换</small>
+          </label>
+          <input
+            id="fileInput"
+            type="file"
+            multiple
+            accept=".docx,.pdf,.html,.htm,.zip,.jpg,.jpeg,.png,.webp,.bmp,.gif,.tif,.tiff"
+          />
+          <p class="format-hint">支持 DOCX / PDF / HTML / HTML ZIP 网页包 / JPG / PNG / WEBP / BMP / GIF / TIFF</p>
+
+          <label class="field-label" for="serverSource">来源系统</label>
+          <input id="serverSource" class="text-input" type="text" value="my_source" />
+
+          <button id="uploadButton" class="primary-button" type="button">
+            <span>上传并解析</span>
+            <span>→</span>
+          </button>
+        </section>
+
+        <section class="panel task-panel">
+          <div class="panel-heading">
+            <span>任务状态</span>
+            <small id="pollState">idle</small>
+          </div>
+          <dl class="task-list">
+            <div>
+              <dt>Task ID</dt>
+              <dd class="task-id-field">
+                <span id="taskId" class="task-id-value">-</span>
+                <button id="taskIdCopy" class="icon-button" type="button" aria-label="复制 Task ID" title="复制 Task ID">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <rect x="9" y="9" width="10" height="10" rx="2"></rect>
+                    <path d="M5 15V7c0-1.1.9-2 2-2h8"></path>
+                  </svg>
+                </button>
+              </dd>
+            </div>
+            <div>
+              <dt>Status</dt>
+              <dd><span id="taskStatus" class="status-badge muted">未开始</span></dd>
+            </div>
+          </dl>
+        </section>
+
+        <section class="panel file-panel">
+          <div class="panel-heading">
+            <span>解析文件</span>
+            <small id="fileCount">0 files</small>
+          </div>
+          <div id="fileList" class="file-list empty">暂无结果</div>
+        </section>
+
+        <footer class="copyright">© 2026 yangyh03. All rights reserved.</footer>
+      </aside>
+
+      <main class="workspace">
+        <header class="topbar">
+          <div>
+            <p class="eyeless-label">本地工作台</p>
+            <h2 id="currentTitle">等待解析结果</h2>
+          </div>
+          <div class="topbar-actions">
+            <button id="refreshButton" class="ghost-button" type="button">刷新任务</button>
+            <a class="ghost-button" href="/system" target="_blank" rel="noreferrer">系统说明</a>
+            <a class="ghost-button" href="/docs" target="_blank" rel="noreferrer">API Docs</a>
+          </div>
+        </header>
+
+        <section class="metric-grid" aria-label="解析指标">
+          <div class="metric">
+            <span>Blocks</span>
+            <strong id="metricBlocks">0</strong>
+          </div>
+          <div class="metric">
+            <span>Chunks</span>
+            <strong id="metricChunks">0</strong>
+          </div>
+          <div class="metric">
+            <span>Assets</span>
+            <strong id="metricAssets">0</strong>
+          </div>
+          <div class="metric">
+            <span>Trace</span>
+            <strong id="metricTrace">0</strong>
+          </div>
+        </section>
+
+        <section id="progressPanel" class="progress-card workflow-progress hidden" aria-label="解析进度">
+          <div class="progress-head">
+            <div>
+              <span id="progressPercent">0%</span>
+              <strong id="progressStep">等待解析</strong>
+            </div>
+            <small id="progressCount">0 / 0</small>
+          </div>
+          <div class="progress-track">
+            <div id="progressBar" class="progress-bar" style="width: 0%"></div>
+          </div>
+          <div class="progress-detail">
+            <span>当前文件</span>
+            <small id="progressFile">-</small>
+          </div>
+        </section>
+
+        <section id="alertBox" class="alert hidden"></section>
+
+        <nav class="tabs" aria-label="结果视图">
+          <button class="tab active" data-tab="overview" type="button">概览</button>
+          <button class="tab" data-tab="content" type="button">正文</button>
+          <button class="tab" data-tab="blocks" type="button">结构块</button>
+          <button class="tab" data-tab="chunks" type="button">知识库切片</button>
+          <button class="tab" data-tab="qa" type="button">知识库问答</button>
+          <button class="tab" data-tab="runtime" type="button">运行指标</button>
+          <button class="tab" data-tab="trace" type="button">执行轨迹</button>
+          <button class="tab" data-tab="json" type="button">原始 JSON</button>
+        </nav>
+
+        <section class="result-surface">
+          <div id="tab-overview" class="tab-view active">
+            <div class="split-layout">
+              <div class="panel result-panel">
+                <div class="panel-heading">
+                  <span>文档概览</span>
+                  <small>metadata</small>
+                </div>
+                <dl id="overviewList" class="detail-list"></dl>
+              </div>
+              <div class="panel result-panel">
+                <div class="panel-heading">
+                  <span>质量提示</span>
+                  <small>workflow signals</small>
+                </div>
+                <div id="qualityHints" class="hint-list"></div>
+              </div>
+            </div>
+          </div>
+
+          <div id="tab-content" class="tab-view">
+            <pre id="contentView" class="text-view">暂无正文</pre>
+          </div>
+
+          <div id="tab-blocks" class="tab-view">
+            <div class="block-toolbar" aria-label="结构块类型筛选">
+              <div class="filter-group">
+                <label><input class="block-filter" type="checkbox" value="title" checked /> title</label>
+                <label><input class="block-filter" type="checkbox" value="paragraph" checked /> paragraph</label>
+                <label><input class="block-filter" type="checkbox" value="table" checked /> table</label>
+                <label><input class="block-filter" type="checkbox" value="image" checked /> image</label>
+              </div>
+              <div class="block-actions">
+                <span id="blockFilterSummary" class="filter-summary">显示 0 / 0 个结构块</span>
+                <button id="editBlocksButton" class="ghost-button compact-button" type="button">编辑模式</button>
+                <button id="saveBlocksButton" class="ghost-button compact-button hidden" type="button">保存校正</button>
+                <button id="cancelBlocksButton" class="ghost-button compact-button hidden" type="button">取消</button>
+                <button id="exportBlocksJsonButton" class="ghost-button compact-button" type="button">导出 JSON</button>
+                <button id="exportBlocksJsonlButton" class="ghost-button compact-button" type="button">导出 JSONL</button>
+              </div>
+            </div>
+            <div id="blocksView" class="block-list empty">暂无结构块</div>
+          </div>
+
+          <div id="tab-chunks" class="tab-view">
+            <div class="chunk-toolbar" aria-label="知识库切片编辑">
+              <span class="filter-summary">切片编辑只影响知识库入库，不修改正文和结构块</span>
+              <div class="chunk-actions">
+                <button id="editChunksButton" class="ghost-button compact-button" type="button">编辑切片</button>
+                <button id="saveChunksButton" class="ghost-button compact-button hidden" type="button">保存切片</button>
+                <button id="cancelChunksButton" class="ghost-button compact-button hidden" type="button">取消</button>
+                <button id="exportChunksJsonButton" class="ghost-button compact-button" type="button">导出 JSON</button>
+                <button id="exportChunksJsonlButton" class="ghost-button compact-button" type="button">导出 JSONL</button>
+                <button id="buildIndexButton" class="ghost-button compact-button" type="button">构建/重建索引</button>
+              </div>
+            </div>
+            <div id="chunksView" class="chunk-list empty">暂无切片</div>
+          </div>
+
+          <div id="tab-qa" class="tab-view">
+            <div class="qa-layout">
+              <div class="panel result-panel qa-index-panel">
+                <div class="panel-heading">
+                  <span>索引状态</span>
+                  <small>task vector index</small>
+                </div>
+                <div class="qa-index-content">
+                  <dl id="indexStatusList" class="detail-list compact-detail-list"></dl>
+                  <button id="qaBuildIndexButton" class="primary-button compact-primary" type="button">构建/重建索引</button>
+                  <p id="indexStatusNote" class="qa-index-note">等待任务结果</p>
+                </div>
+              </div>
+              <div class="panel result-panel qa-main-panel">
+                <div class="panel-heading">
+                  <span>知识库问答</span>
+                  <small>retrieval augmented QA</small>
+                </div>
+                <div class="qa-form">
+                  <textarea id="questionInput" class="question-input" placeholder="围绕当前任务中的已入库切片提问"></textarea>
+                  <div class="qa-actions">
+                    <label>
+                      top-k
+                      <input id="topKInput" class="topk-input" type="number" min="1" max="10" value="5" />
+                    </label>
+                    <button id="askButton" class="ghost-button compact-button" type="button">提问</button>
+                  </div>
+                </div>
+                <div id="answerView" class="answer-view">暂无回答</div>
+              </div>
+              <div class="panel result-panel qa-source-panel">
+                <div class="panel-heading">
+                  <span>检索来源</span>
+                  <small>retrieved chunks</small>
+                </div>
+                <div id="sourceView" class="source-list empty">暂无来源</div>
+              </div>
+            </div>
+          </div>
+
+          <div id="tab-trace" class="tab-view">
+            <div class="table-wrap">
+              <table class="trace-table">
+                <thead>
+                  <tr>
+                    <th>Node</th>
+                    <th>Status</th>
+                    <th>Duration</th>
+                    <th>Fallback</th>
+                    <th>Message</th>
+                  </tr>
+                </thead>
+                <tbody id="traceView"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div id="tab-runtime" class="tab-view">
+            <div class="runtime-layout">
+              <div class="panel result-panel">
+                <div class="panel-heading">
+                  <span>模型调用汇总</span>
+                  <small>task / file runtime metrics</small>
+                </div>
+                <div id="runtimeSummary" class="runtime-summary"></div>
+              </div>
+              <div class="panel result-panel">
+                <div class="panel-heading">
+                  <span>模型事件</span>
+                  <small>metadata · vision · embedding · qa</small>
+                </div>
+                <div id="runtimeEvents" class="runtime-events empty">暂无模型调用记录</div>
+              </div>
+            </div>
+          </div>
+
+          <div id="tab-json" class="tab-view">
+            <div class="json-toolbar">
+              <div>
+                <strong>原始 JSON</strong>
+                <small>按需选择字段导出当前文件</small>
+              </div>
+              <div class="json-actions">
+                <button id="openJsonFieldExportButton" class="ghost-button compact-button" type="button">字段选择导出</button>
+                <button id="copyJsonButton" class="ghost-button compact-button" type="button">复制当前 JSON</button>
+              </div>
+            </div>
+            <pre id="jsonView" class="text-view">暂无 JSON</pre>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <div id="jsonExportDialog" class="json-export-modal hidden" role="dialog" aria-modal="true" aria-labelledby="jsonExportTitle">
+      <div class="json-export-panel">
+        <div class="json-export-head">
+          <div>
+            <h3 id="jsonExportTitle">字段选择导出</h3>
+            <p>默认不导出本地路径，勾选后仅在浏览器本地生成 JSON 文件。</p>
+          </div>
+          <button id="closeJsonExportButton" class="icon-button" type="button" aria-label="关闭字段选择">×</button>
+        </div>
+        <div class="json-export-presets" aria-label="导出模板">
+          <button class="ghost-button compact-button" type="button" data-json-preset="business">业务结果</button>
+          <button class="ghost-button compact-button" type="button" data-json-preset="rag">知识库入库</button>
+          <button class="ghost-button compact-button" type="button" data-json-preset="debug">调试完整</button>
+          <button id="toggleJsonAdvancedButton" class="ghost-button compact-button" type="button">显示高级字段</button>
+        </div>
+        <div id="jsonFieldTree" class="json-field-tree"></div>
+        <div class="json-export-foot">
+          <span id="jsonExportSummary">已选择 0 个字段</span>
+          <div>
+            <button id="cancelJsonExportButton" class="ghost-button compact-button" type="button">取消</button>
+            <button id="confirmJsonExportButton" class="primary-button compact-primary" type="button">导出 JSON</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="/static/app.js?v=20260702-qa-note-grid"></script>
+  </body>
+</html>

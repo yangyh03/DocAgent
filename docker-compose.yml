@@ -1,0 +1,17 @@
+services:
+  docagent:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: docagent:latest
+    container_name: docagent
+    ports:
+      - "${DOCAGENT_HOST_PORT:-8001}:8001"
+    env_file:
+      - .env
+    environment:
+      DOCAGENT_DATA_DIR: /app/data
+      VECTOR_STORE_DIR: /app/data/vector_store/chroma
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped

@@ -12,6 +12,9 @@ const state = {
   indexStatus: null,
   qaAnswer: "",
   qaSources: [],
+  recentTasks: [],
+  selectedRecentTaskIds: new Set(),
+  deletingRecentTasks: false,
   jsonExportFields: new Set(),
   jsonExportAll: false,
   jsonAdvancedFieldsVisible: false,
@@ -208,6 +211,10 @@ const els = {
   taskId: $("taskId"),
   taskIdCopy: $("taskIdCopy"),
   taskStatus: $("taskStatus"),
+  recentTasksCount: $("recentTasksCount"),
+  recentTaskSelectAll: $("recentTaskSelectAll"),
+  recentTaskDeleteButton: $("recentTaskDeleteButton"),
+  recentTaskList: $("recentTaskList"),
   progressPanel: $("progressPanel"),
   progressPercent: $("progressPercent"),
   progressCount: $("progressCount"),
@@ -304,6 +311,17 @@ els.closeJsonExportButton.addEventListener("click", closeJsonFieldExportDialog);
 els.cancelJsonExportButton.addEventListener("click", closeJsonFieldExportDialog);
 els.confirmJsonExportButton.addEventListener("click", exportSelectedJson);
 els.toggleJsonAdvancedButton.addEventListener("click", toggleJsonAdvancedFields);
+els.recentTaskSelectAll.addEventListener("change", toggleAllRecentTasks);
+els.recentTaskDeleteButton.addEventListener("click", deleteSelectedRecentTasks);
+els.recentTaskList.addEventListener("click", (event) => {
+  const checkbox = event.target.closest("[data-recent-task-check]");
+  if (checkbox) {
+    toggleRecentTaskSelection(checkbox.dataset.recentTaskCheck, checkbox.checked);
+    return;
+  }
+  const button = event.target.closest("[data-recent-task-id]");
+  if (button) restoreRecentTask(button.dataset.recentTaskId);
+});
 
 document.querySelectorAll(".tab").forEach((button) => {
   button.addEventListener("click", () => activateTab(button.dataset.tab));
@@ -367,6 +385,7 @@ async function uploadDocuments() {
   state.qaSources = [];
     state.selectedIndex = 0;
     renderTask({ task_id: payload.task_id, status: payload.status, message: payload.message });
+    await loadRecentTasks();
     renderEmptyResult("任务已提交，正在解析。");
     startPolling();
   } catch (error) {
@@ -428,7 +447,176 @@ async function fetchResult() {
   });
   renderFileList();
   renderCurrentFile();
+  await loadRecentTasks();
   await fetchIndexStatus();
+}
+
+async function loadRecentTasks() {
+  try {
+    const response = await fetch("/api/documents/tasks?limit=20");
+    if (!response.ok) throw new Error(await response.text());
+    const payload = await response.json();
+    state.recentTasks = payload.items || [];
+    const availableIds = new Set(state.recentTasks.map((task) => task.task_id));
+    state.selectedRecentTaskIds = new Set(
+      Array.from(state.selectedRecentTaskIds).filter((taskId) => availableIds.has(taskId)),
+    );
+    renderRecentTasks();
+  } catch (error) {
+    state.recentTasks = [];
+    state.selectedRecentTaskIds.clear();
+    renderRecentTasks(`历史任务加载失败：${error.message}`);
+  }
+}
+
+function renderRecentTasks(message = "") {
+  const tasks = state.recentTasks || [];
+  els.recentTasksCount.textContent = `${tasks.length} tasks`;
+  if (message) {
+    els.recentTaskList.className = "recent-task-list empty";
+    els.recentTaskList.textContent = message;
+    updateRecentTaskDeleteActions();
+    return;
+  }
+  if (!tasks.length) {
+    els.recentTaskList.className = "recent-task-list empty";
+    els.recentTaskList.textContent = "暂无历史任务";
+    updateRecentTaskDeleteActions();
+    return;
+  }
+  els.recentTaskList.className = "recent-task-list";
+  els.recentTaskList.innerHTML = tasks
+    .map((task) => {
+      const active = task.task_id === state.taskId ? " active" : "";
+      const checked = state.selectedRecentTaskIds.has(task.task_id) ? " checked" : "";
+      const fileNames = Array.isArray(task.file_names) && task.file_names.length ? task.file_names.join("、") : `${task.file_count || 0} files`;
+      return `
+        <div class="recent-task-item${active}">
+          <label class="recent-task-check" title="选择任务">
+            <input type="checkbox" data-recent-task-check="${escapeHtml(task.task_id)}"${checked} />
+          </label>
+          <button class="recent-task-open" type="button" data-recent-task-id="${escapeHtml(task.task_id)}">
+            <span class="recent-task-main">
+              <strong>${escapeHtml(fileNames)}</strong>
+              <small>${escapeHtml(shortTaskId(task.task_id))} · ${escapeHtml(formatDateTime(task.updated_at))}</small>
+            </span>
+            <span class="status-badge ${escapeHtml(task.status || "")}">${escapeHtml(formatStatus(task.status))}</span>
+          </button>
+        </div>
+      `;
+    })
+    .join("");
+  updateRecentTaskDeleteActions();
+}
+
+function toggleRecentTaskSelection(taskId, checked) {
+  if (!taskId) return;
+  if (checked) {
+    state.selectedRecentTaskIds.add(taskId);
+  } else {
+    state.selectedRecentTaskIds.delete(taskId);
+  }
+  updateRecentTaskDeleteActions();
+}
+
+function toggleAllRecentTasks() {
+  const taskIds = (state.recentTasks || []).map((task) => task.task_id).filter(Boolean);
+  if (els.recentTaskSelectAll.checked) {
+    state.selectedRecentTaskIds = new Set(taskIds);
+  } else {
+    state.selectedRecentTaskIds.clear();
+  }
+  renderRecentTasks();
+}
+
+function updateRecentTaskDeleteActions() {
+  const tasks = state.recentTasks || [];
+  const taskIds = new Set(tasks.map((task) => task.task_id));
+  const selectedCount = Array.from(state.selectedRecentTaskIds).filter((taskId) => taskIds.has(taskId)).length;
+  els.recentTaskSelectAll.disabled = !tasks.length || state.deletingRecentTasks;
+  els.recentTaskSelectAll.checked = tasks.length > 0 && selectedCount === tasks.length;
+  els.recentTaskSelectAll.indeterminate = selectedCount > 0 && selectedCount < tasks.length;
+  els.recentTaskDeleteButton.disabled = selectedCount === 0 || state.deletingRecentTasks;
+  els.recentTaskDeleteButton.textContent = selectedCount > 0 ? `删除选中 (${selectedCount})` : "删除选中";
+}
+
+async function deleteSelectedRecentTasks() {
+  const taskIds = Array.from(state.selectedRecentTaskIds);
+  if (!taskIds.length) {
+    showAlert("请先选择要删除的历史任务。");
+    return;
+  }
+  const confirmed = window.confirm(`确定删除选中的 ${taskIds.length} 个历史任务吗？对应任务文件和知识库索引也会被清理。`);
+  if (!confirmed) return;
+
+  state.deletingRecentTasks = true;
+  updateRecentTaskDeleteActions();
+  const deletingCurrentTask = taskIds.includes(state.taskId);
+  try {
+    const failures = [];
+    await Promise.all(
+      taskIds.map(async (taskId) => {
+        const response = await fetch(`/api/documents/tasks/${encodeURIComponent(taskId)}`, { method: "DELETE" });
+        if (!response.ok) failures.push(`${shortTaskId(taskId)}: ${await response.text()}`);
+      }),
+    );
+    state.selectedRecentTaskIds.clear();
+    if (deletingCurrentTask) resetCurrentTaskAfterDeletion();
+    await loadRecentTasks();
+    if (failures.length) {
+      showAlert(`部分任务删除失败：${failures.join("；")}`);
+    } else {
+      showAlert("选中的历史任务已删除。");
+    }
+  } catch (error) {
+    showAlert(`删除历史任务失败：${error.message}`);
+  } finally {
+    state.deletingRecentTasks = false;
+    updateRecentTaskDeleteActions();
+  }
+}
+
+function resetCurrentTaskAfterDeletion() {
+  stopPolling();
+  state.taskId = "";
+  state.task = null;
+  state.result = null;
+  state.selectedIndex = 0;
+  state.indexStatus = null;
+  state.qaAnswer = "";
+  state.qaSources = [];
+  renderTask({ task_id: "", status: "unknown", progress: {} });
+  renderFileList();
+  renderEmptyResult("当前任务已删除。");
+}
+
+async function restoreRecentTask(taskId) {
+  if (!taskId) return;
+  stopPolling();
+  state.taskId = taskId;
+  state.result = null;
+  state.indexStatus = null;
+  state.qaAnswer = "";
+  state.qaSources = [];
+  state.selectedIndex = 0;
+  clearAlert();
+  renderEmptyResult("正在恢复历史任务。");
+  try {
+    const response = await fetch(`/api/documents/tasks/${encodeURIComponent(taskId)}`);
+    if (!response.ok) throw new Error(await response.text());
+    const task = await response.json();
+    state.task = task;
+    renderTask(task);
+    renderRecentTasks();
+    if (["success", "partial_success", "failed"].includes(task.status)) {
+      await fetchResult();
+    } else {
+      renderEmptyResult("任务尚未完成，继续轮询状态。");
+      startPolling();
+    }
+  } catch (error) {
+    showAlert(`恢复任务失败：${error.message}`);
+  }
 }
 
 function renderTask(task) {
@@ -993,6 +1181,7 @@ async function saveBlockCorrections() {
     state.editingBlocks = false;
     state.draftBlocks = [];
     markIndexNeedsRebuild();
+    await loadRecentTasks();
     renderFileList();
     renderCurrentFile();
   } catch (error) {
@@ -1073,6 +1262,7 @@ async function saveChunkCorrections() {
     state.editingChunks = false;
     state.draftChunks = [];
     markIndexNeedsRebuild();
+    await loadRecentTasks();
     renderFileList();
     renderCurrentFile();
   } catch (error) {
@@ -1537,6 +1727,19 @@ function formatStatus(status) {
   return labels[status] || status || "-";
 }
 
+function shortTaskId(taskId) {
+  const value = String(taskId || "");
+  return value.length > 10 ? `${value.slice(0, 8)}...` : value || "-";
+}
+
+function formatDateTime(value) {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  const pad = (number) => String(number).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
 function findUnsupportedFiles(files) {
   return files.filter((file) => !SUPPORTED_EXTENSIONS.has(fileExtension(file.name)));
 }
@@ -1599,3 +1802,4 @@ function escapeHtml(value) {
 
 renderKnowledgePanel();
 renderRuntimeMetrics(null);
+loadRecentTasks();

@@ -119,6 +119,29 @@ class TaskInfo(BaseModel):
     runtimeMetrics: RuntimeMetrics = Field(default_factory=RuntimeMetrics)
 
 
+class TaskListItem(BaseModel):
+    task_id: str
+    status: TaskStatus
+    message: str = ""
+    created_at: datetime
+    updated_at: datetime
+    file_count: int = 0
+    progress: TaskProgress = Field(default_factory=TaskProgress)
+    file_names: list[str] = Field(default_factory=list)
+
+
+class TaskListResponse(BaseModel):
+    total: int = 0
+    items: list[TaskListItem] = Field(default_factory=list)
+
+
+class TaskDeleteResponse(BaseModel):
+    task_id: str
+    deleted: bool = True
+    index_deleted: bool = False
+    message: str = ""
+
+
 class TaskResult(BaseModel):
     code: int = 200
     message: str

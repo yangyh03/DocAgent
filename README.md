@@ -199,7 +199,9 @@ Embedding 和 QA 默认也复用 `DASHSCOPE_API_KEY` 与 `DASHSCOPE_BASE_URL`。
 | 方法      | 路径                                                                | 说明                   |
 | --------- | ------------------------------------------------------------------- | ---------------------- |
 | `POST`  | `/api/documents/analyze`                                          | 上传文件并创建解析任务 |
+| `GET`   | `/api/documents/tasks`                                            | 查询最近任务列表       |
 | `GET`   | `/api/documents/tasks/{task_id}`                                  | 查询任务状态           |
+| `DELETE` | `/api/documents/tasks/{task_id}`                                | 删除历史任务和索引     |
 | `GET`   | `/api/documents/tasks/{task_id}/result`                           | 获取任务结果           |
 | `PATCH` | `/api/documents/tasks/{task_id}/result/files/{file_index}/blocks` | 保存结构块校正         |
 | `PATCH` | `/api/documents/tasks/{task_id}/result/files/{file_index}/chunks` | 保存知识库切片校正     |
@@ -238,7 +240,13 @@ data/tasks/{task_id}/assets/
 data/vector_store/chroma/
 ```
 
-注意：当前任务结果主要保存在内存中，服务重启后任务状态和任务结果可能丢失。上传文件、assets 和 Chroma 向量库数据会按配置目录落盘。
+任务状态和解析结果会写入：
+
+```text
+data/tasks/{task_id}/task.json
+```
+
+上传文件、assets 和 Chroma 向量库数据也会按配置目录落盘。使用 Docker 部署时，只要挂载 `data/` 目录，已完成任务、解析结果、图片资源和向量库可以在容器重启后恢复。运行中的任务如果遇到服务重启，会标记为失败并提示重新上传解析。
 
 ## 常见问题
 

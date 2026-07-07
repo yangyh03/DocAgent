@@ -70,6 +70,23 @@
           </dl>
         </section>
 
+        <section class="panel recent-task-panel">
+          <div class="panel-heading">
+            <span>最近任务</span>
+            <small id="recentTasksCount">0 tasks</small>
+          </div>
+          <div class="recent-task-actions">
+            <label>
+              <input id="recentTaskSelectAll" type="checkbox" />
+              <span>全选</span>
+            </label>
+            <button id="recentTaskDeleteButton" class="ghost-button compact-button danger-button" type="button" disabled>
+              删除选中
+            </button>
+          </div>
+          <div id="recentTaskList" class="recent-task-list empty">暂无历史任务</div>
+        </section>
+
         <section class="panel file-panel">
           <div class="panel-heading">
             <span>解析文件</span>

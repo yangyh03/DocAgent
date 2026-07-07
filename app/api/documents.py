@@ -13,7 +13,9 @@ from app.schemas import (
     KnowledgeAskResponse,
     KnowledgeIndexRequest,
     KnowledgeIndexStatus,
+    TaskDeleteResponse,
     TaskInfo,
+    TaskListResponse,
     TaskResult,
     TaskStatus,
 )
@@ -40,6 +42,29 @@ async def analyze_documents(
         message="任务已提交",
         task_id=task.task_id,
         status=TaskStatus.pending,
+    )
+
+
+@router.get("/tasks", response_model=TaskListResponse)
+async def list_tasks(limit: int = 20) -> TaskListResponse:
+    items = task_service.list_tasks(limit)
+    return TaskListResponse(total=task_service.count_tasks(), items=items)
+
+
+@router.delete("/tasks/{task_id}", response_model=TaskDeleteResponse)
+async def delete_task(task_id: str) -> TaskDeleteResponse:
+    task = task_service.get_task(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="任务不存在")
+    index_deleted = knowledge_service.delete_index(task_id)
+    deleted = task_service.delete_task(task_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="任务不存在")
+    return TaskDeleteResponse(
+        task_id=task_id,
+        deleted=True,
+        index_deleted=index_deleted,
+        message="任务已删除",
     )
 
 

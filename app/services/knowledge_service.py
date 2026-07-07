@@ -20,6 +20,15 @@ class KnowledgeService:
     def collection_name(self, task_id: str) -> str:
         return f"docagent_task_{task_id}"
 
+    def delete_index(self, task_id: str) -> bool:
+        collection_name = self.collection_name(task_id)
+        self._status.pop(task_id, None)
+        try:
+            self._get_client().delete_collection(collection_name)
+            return True
+        except Exception:
+            return False
+
     def get_index_status(self, task_id: str) -> KnowledgeIndexStatus:
         if task_service.get_task(task_id) is None:
             raise KeyError(task_id)

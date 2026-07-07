@@ -108,7 +108,9 @@ PDF 扫描页：extracted_text 额外插入 paragraph，description 仍进入 im
 | 方法      | 路径                                                                | 说明                   |
 | --------- | ------------------------------------------------------------------- | ---------------------- |
 | `POST`  | `/api/documents/analyze`                                          | 上传文件并创建解析任务 |
+| `GET`   | `/api/documents/tasks`                                            | 查询最近任务列表       |
 | `GET`   | [`/api/documents/tasks/{task_id}](#任务状态字段)`                                  | 查询任务状态           |
+| `DELETE` | `/api/documents/tasks/{task_id}`                                | 删除历史任务和索引     |
 | `GET`   | [`/api/documents/tasks/{task_id}/result`](#任务结果字段)           | 获取任务结果           |
 | `PATCH` | `/api/documents/tasks/{task_id}/result/files/{file_index}/blocks` | 保存结构块校正         |
 | `PATCH` | `/api/documents/tasks/{task_id}/result/files/{file_index}/chunks` | 保存知识库切片校正     |
@@ -2058,6 +2060,7 @@ DocAgent 的运行数据主要包括：
 
 ```text
 data/tasks/{task_id}/
+data/tasks/{task_id}/task.json
 data/tasks/{task_id}/assets/
 data/vector_store/chroma/
 ```
@@ -2068,7 +2071,9 @@ data/vector_store/chroma/
 本机 ./data  <->  容器 /app/data
 ```
 
-这样即使容器重建，上传文件、assets 和 Chroma 持久化向量库仍然保留在宿主机。
+其中 `task.json` 保存任务状态、解析结果、人工校正后的 blocks/chunks、qualityHints、agentTrace 和 runtimeMetrics；`assets/` 保存图片资源；`vector_store/chroma/` 保存 Chroma 向量库。
+
+这样即使容器重建，已完成任务、上传文件、assets、解析结果和 Chroma 持久化向量库仍然保留在宿主机。需要注意的是：如果服务重启时任务仍处于 `pending` 或 `running`，系统不会自动续跑该任务，而是会在恢复时标记为 `failed`，提示用户重新上传解析。
 
 #### 4. `.env.example` 和 `.env`
 

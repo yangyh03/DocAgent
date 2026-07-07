@@ -498,7 +498,7 @@ function renderRecentTasks(message = "") {
           <button class="recent-task-open" type="button" data-recent-task-id="${escapeHtml(task.task_id)}">
             <span class="recent-task-main">
               <strong>${escapeHtml(fileNames)}</strong>
-              <small>${escapeHtml(shortTaskId(task.task_id))} · ${escapeHtml(formatDateTime(task.updated_at))}</small>
+              <small>${escapeHtml(formatDateTime(task.updated_at))}</small>
             </span>
             <span class="status-badge ${escapeHtml(task.status || "")}">${escapeHtml(formatStatus(task.status))}</span>
           </button>
@@ -546,7 +546,12 @@ async function deleteSelectedRecentTasks() {
     showAlert("请先选择要删除的历史任务。");
     return;
   }
-  const confirmed = window.confirm(`确定删除选中的 ${taskIds.length} 个历史任务吗？对应任务文件和知识库索引也会被清理。`);
+  const fileList = selectedRecentTaskFileNames(taskIds);
+  const previewLines = fileList.slice(0, 10).map((name) => `- ${name}`).join("\n");
+  const extraLine = fileList.length > 10 ? `\n等 ${fileList.length} 个任务` : "";
+  const confirmed = window.confirm(
+    `确定删除选中的 ${taskIds.length} 个历史任务吗？对应任务文件和知识库索引也会被清理。\n\n将删除：\n${previewLines}${extraLine}`,
+  );
   if (!confirmed) return;
 
   state.deletingRecentTasks = true;
@@ -574,6 +579,18 @@ async function deleteSelectedRecentTasks() {
     state.deletingRecentTasks = false;
     updateRecentTaskDeleteActions();
   }
+}
+
+function selectedRecentTaskFileNames(taskIds) {
+  const taskIdSet = new Set(taskIds);
+  return (state.recentTasks || [])
+    .filter((task) => taskIdSet.has(task.task_id))
+    .map((task) => {
+      if (Array.isArray(task.file_names) && task.file_names.length) {
+        return task.file_names.join("、");
+      }
+      return `${task.file_count || 0} files`;
+    });
 }
 
 function resetCurrentTaskAfterDeletion() {
@@ -726,8 +743,6 @@ function renderOverview(file) {
   const rows = [
     ["文件名", file.fileName],
     ["类型", file.fileType],
-    ["文件状态", formatStatus(file.status || "success")],
-    ["任务状态", formatStatus(state.result?.status || "-")],
     ...(file.status === "failed" && file.errorMessage ? [["失败原因", file.errorMessage]] : []),
     ["创建日期", file.createDate],
     ["文件地址", file.fileUrl, { secret: true }],

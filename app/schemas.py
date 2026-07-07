@@ -12,6 +12,13 @@ class TaskStatus(str, Enum):
     success = "success"
     failed = "failed"
 
+class HealthResponse(BaseModel):
+    status: str = "ok"
+    message: str = "Service is running"
+    task_count: int = 0
+    data_dir: str = ""
+    vector_store_dir: str = ""
+
 
 class DocumentBlock(BaseModel):
     # 文档结构块分类

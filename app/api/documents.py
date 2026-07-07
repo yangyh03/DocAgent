@@ -18,6 +18,7 @@ from app.schemas import (
     TaskListResponse,
     TaskResult,
     TaskStatus,
+    HealthResponse,
 )
 from app.config import settings
 from app.services.document_service import apply_block_corrections, apply_chunk_corrections, run_analysis_task
@@ -28,6 +29,15 @@ from app.services.task_service import task_service
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 
+@router.get("/health", response_model=HealthResponse)
+async def get_documents_health() -> HealthResponse:
+    return HealthResponse(
+        status="ok",
+        message="Service is running",
+        task_count=task_service.count_tasks(),
+        data_dir=str(settings.data_dir),
+        vector_store_dir=str(settings.vector_store_dir),
+    )
 
 @router.post("/analyze", response_model=AnalyzeAccepted)
 async def analyze_documents(
